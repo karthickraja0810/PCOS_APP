@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PCOS Prediction Result</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 flex flex-col items-center justify-center h-screen">
+  <div class="bg-white p-10 rounded-2xl shadow-lg text-center w-2/3">
+    <h1 class="text-3xl font-bold text-green-700 mb-4">🩺 PCOS Prediction Result</h1>
+
+    {% if error %}
+      <p class="text-xl font-semibold mb-4 text-red-600">
+        Predicted Risk: Error in ML Prediction
+      </p>
+      <div class="text-left mt-6 bg-red-50 p-4 rounded-lg border border-red-200">
+        <h2 class="text-lg font-semibold mb-2 text-red-700">❌ Technical Error Details:</h2>
+        <p class="text-red-800 break-words">{{ error }}</p>
+      </div>
+      
+    {% elif result %}
+      <p class="text-xl font-semibold mb-4">Predicted Risk: 
+        <span class="text-{{ 'red-600' if result == 'High Risk' else 'orange-500' if result == 'Moderate Risk' else 'green-600' }}">
+          {{ result }}
+        </span>
+      </p>
+
+      <div class="text-left mt-6">
+        <h2 class="text-lg font-semibold mb-2">💡 Recommended Suggestions:</h2>
+        <ul class="list-disc list-inside text-gray-700 leading-relaxed">
+          {% if result == 'High Risk' %}
+            <li>Consult a gynecologist for detailed hormonal and ultrasound evaluation.</li>
+            <li>Reduce processed foods, sugar, and refined carbs.</li>
+            <li>Engage in 30–45 minutes of regular physical activity.</li>
+            <li>Track menstrual cycles and manage weight actively.</li>
+          {% elif result == 'Moderate Risk' %}
+            <li>Maintain balanced diet and include more fiber and lean proteins.</li>
+            <li>Reduce stress and follow regular sleep cycles.</li>
+            <li>Schedule preventive health check-ups every 6 months.</li>
+          {% else %}
+            <li>Maintain current healthy lifestyle.</li>
+            <li>Continue regular exercise and hydration.</li>
+            <li>Annual health checkup recommended.</li>
+          {% endif %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <a href="/doctor" class="mt-6 inline-block bg-green-700 text-white px-6 py-2 rounded hover:bg-green-800">
+      🔙 Back to Dashboard
+    </a>
+  </div>
+</body>
+</html>

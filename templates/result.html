@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCOS Risk Result</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-pink-50 min-h-screen flex flex-col items-center justify-center p-6">
+
+    <div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-xl text-center">
+        <h1 class="text-4xl font-bold text-pink-700 mb-4">PCOS Risk Assessment</h1>
+        <p class="text-gray-600 mb-6">Here is your predicted PCOS risk level based on the information you provided.</p>
+
+        <!-- ✅ Result Display and Health Tips -->
+        {% if result == "High" %}
+        <div class="bg-red-100 text-red-700 border border-red-300 rounded-xl py-6 px-4 mb-6">
+            <h2 class="text-2xl font-bold">PCOS Likelihood: Strong</h2>
+            <p class="mt-2 text-gray-700">We recommend consulting a gynecologist for further diagnosis and management.</p>
+
+            <!-- 💡 Diet & Lifestyle Tips -->
+            <div class="mt-6 text-left text-gray-700">
+                <h3 class="text-lg font-semibold mb-2">🌿 Recommended Diet & Lifestyle</h3>
+                <ul class="list-disc ml-6 space-y-1">
+                    <li>Follow a low-glycemic diet (whole grains, lentils, vegetables).</li>
+                    <li>Avoid processed sugar, white bread, and fried foods.</li>
+                    <li>Exercise at least 30 minutes daily (walking, yoga, or aerobics).</li>
+                    <li>Manage stress with deep breathing or mindfulness meditation.</li>
+                    <li>Get 7–8 hours of quality sleep each night.</li>
+                </ul>
+            </div>
+        </div>
+
+        {% elif result == "Moderate" %}
+        <div class="bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-xl py-6 px-4 mb-6">
+            <h2 class="text-2xl font-bold">PCOS Likelihood: Borderline/Moderate</h2>
+            <p class="mt-2 text-gray-700">You might consider monitoring your symptoms and scheduling a medical check-up.</p>
+
+            <!-- 💡 Diet & Lifestyle Tips -->
+            <div class="mt-6 text-left text-gray-700">
+                <h3 class="text-lg font-semibold mb-2">🌿 Tips to Maintain Hormonal Balance</h3>
+                <ul class="list-disc ml-6 space-y-1">
+                    <li>Include lean protein, fiber, and omega-3 fatty acids in your meals.</li>
+                    <li>Reduce caffeine and dairy intake.</li>
+                    <li>Stay active — maintain at least 150 minutes of physical activity per week.</li>
+                    <li>Track menstrual cycles and note irregularities.</li>
+                    <li>Keep stress levels low through relaxation or hobbies.</li>
+                </ul>
+            </div>
+        </div>
+
+        {% elif result == "Low" %}
+        <div class="bg-green-100 text-green-700 border border-green-300 rounded-xl py-6 px-4 mb-6">
+            <h2 class="text-2xl font-bold">PCOS Likelihood: Low</h2>
+            <p class="mt-2 text-gray-700">Currently, your inputs indicate a low chance of PCOS. Maintain a healthy lifestyle!</p>
+
+            <!-- 💡 Maintenance Tips -->
+            <div class="mt-6 text-left text-gray-700">
+                <h3 class="text-lg font-semibold mb-2">🌿 Healthy Lifestyle Maintenance</h3>
+                <ul class="list-disc ml-6 space-y-1">
+                    <li>Keep a balanced diet rich in vegetables and fruits.</li>
+                    <li>Exercise regularly and avoid long hours of inactivity.</li>
+                    <li>Stay hydrated and get enough sleep.</li>
+                    <li>Continue with annual health check-ups for prevention.</li>
+                </ul>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="bg-gray-100 text-gray-700 border border-gray-300 rounded-xl py-6 px-4 mb-6">
+            <h2 class="text-2xl font-bold">ℹ️ Result Not Available</h2>
+            <p class="mt-2 text-gray-700">Please recheck your inputs or try again later.</p>
+        </div>
+        {% endif %}
+
+        <!-- 🔘 Buttons -->
+        <div class="flex justify-center space-x-4 mt-6">
+            <a href="/predict" class="bg-pink-600 hover:bg-pink-700 text-white px-6 py-3 rounded-xl font-semibold transition">
+                Check Again
+            </a>
+            <a href="/" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-3 rounded-xl font-semibold transition">
+                Home
+            </a>
+        </div>
+    </div>
+
+    <!-- 🩺 Footer -->
+    <p class="mt-6 text-gray-500 text-sm">
+        *This result is a preliminary risk assessment and not a medical diagnosis.*
+    </p>
+
+</body>
+</html>

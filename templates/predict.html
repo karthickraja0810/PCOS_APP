@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCOS Risk Prediction</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+    <script>
+        // Auto BMI Calculator
+        function calculateBMI() {
+            let height = parseFloat(document.getElementById('height').value);
+            let weight = parseFloat(document.getElementById('weight').value);
+            if (height > 0 && weight > 0) {
+                let bmi = weight / ((height / 100) ** 2);
+                document.getElementById('bmi').value = bmi.toFixed(2);
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gradient-to-r from-pink-50 to-purple-100 min-h-screen flex flex-col items-center py-10">
+
+    <h1 class="text-4xl font-extrabold text-pink-700 mb-8">PCOS Risk Prediction Form</h1>
+
+    <form action="/predict" method="POST" 
+          class="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-3xl space-y-6 border border-gray-100">
+
+        <p class="text-gray-600 text-center">Fill out your details below to assess your PCOS risk level.</p>
+
+        <!-- Basic Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Age (years)</label>
+                <input type="number" name="age" required
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Marriage Duration (years)</label>
+                <input type="number" step="0.1" name="marraige_years"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+        </div>
+
+        <!-- Height, Weight, BMI -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Height (cm)</label>
+                <input type="number" id="height" name="height" oninput="calculateBMI()" required
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Weight (kg)</label>
+                <input type="number" id="weight" name="weight" oninput="calculateBMI()" required
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">BMI (auto)</label>
+                <input type="text" id="bmi" name="bmi" readonly
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100">
+            </div>
+        </div>
+
+        <!-- Menstrual History -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Cycle Length (days)</label>
+                <input type="number" name="cycle_length"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Cycle Regularity</label>
+                <select name="cycle_regular"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+                    <option value="regular">Regular</option>
+                    <option value="irregular">Irregular</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Clinical Symptoms -->
+        <h2 class="text-lg font-semibold text-pink-700 mt-4">Clinical Symptoms</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Excess Hair Growth</label>
+                <select name="hair_growth" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Acne</label>
+                <select name="acne" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Hair Loss</label>
+                <select name="hair_loss" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Dark Skin Patches (Acanthosis Nigricans)</label>
+                <select name="dark_skin" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Lifestyle Factors -->
+        <h2 class="text-lg font-semibold text-pink-700 mt-4">Lifestyle Factors</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Physical Activity</label>
+                <select name="activity" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="low">Low</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Stress Level</label>
+                <select name="stress" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Sleep Duration (hours/day)</label>
+                <input type="number" name="sleep_hours" step="0.1"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </div>
+        </div>
+
+        <!-- Metabolic Data -->
+        <h2 class="text-lg font-semibold text-pink-700 mt-4">Metabolic Details</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Fasting Glucose (mg/dL)</label>
+                <input type="number" name="glucose" step="0.1"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Fasting Insulin (µIU/mL)</label>
+                <input type="number" name="insulin" step="0.1"
+                       class="w-full border border-gray-300 rounded-md px-3 py-2">
+            </div>
+        </div>
+
+        <!-- Other Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Currently Pregnant?</label>
+                <select name="pregnant" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Blood Group</label>
+                <select name="blood_group" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <label class="block text-gray-700 font-semibold mb-2">Number of Abortions (if any)</label>
+            <input type="number" name="abortions" class="w-full border border-gray-300 rounded-md px-3 py-2">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-8">
+            <button type="submit" 
+                    class="bg-pink-600 hover:bg-pink-700 text-white px-10 py-3 rounded-xl font-semibold shadow-lg transition">
+                Predict My PCOS Risk
+            </button>
+        </div>
+    </form>
+
+    <!-- Back -->
+    <div class="mt-6">
+        <a href="/" class="text-pink-600 hover:underline font-semibold">← Back to Home</a>
+    </div>
+
+</body>
+</html>

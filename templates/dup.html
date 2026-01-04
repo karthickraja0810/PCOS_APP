@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor Dashboard - PCOS Prediction</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Styling for the Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: none; /* Hidden by default */
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    /* Specific style for the dashboard fields */
+    input[readonly] {
+      background-color: #f3f4f6; /* Tailwind gray-100 */
+      cursor: not-allowed;
+    }
+    /* --- NEW: Style for the Chat Modal and Icon --- */
+    .chat-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: flex-end; /* Align to the right */
+      align-items: flex-end; /* Align to the bottom */
+      z-index: 1000;
+      padding: 20px;
+    }
+  </style>
+  <script>
+    // --- JS UTILITY FUNCTIONS ---
+    function calculateBMI() {
+      const height = parseFloat(document.getElementById("Height").value);
+      const weight = parseFloat(document.getElementById("Weight").value);
+      if (height > 0 && weight > 0) {
+        // BMI = weight (kg) / [height (m)]^2. Convert cm to m.
+        const bmi = (weight / ((height / 100) ** 2)).toFixed(2); 
+        document.getElementById("BMI").value = bmi;
+      }
+    }
+    
+    function calculateRatio() {
+      const hip = parseFloat(document.getElementById("Hip").value);
+      const waist = parseFloat(document.getElementById("Waist").value);
+      const fsh = parseFloat(document.getElementById("FSH").value);
+      const lh = parseFloat(document.getElementById("LH").value);
+      
+      // Waist:Hip Ratio calculation
+      if (hip > 0 && waist > 0) {
+        const ratio = (waist / hip).toFixed(2);
+        document.getElementById("Waist_Hip_Ratio").value = ratio;
+      }
+      
+      // FSH/LH Ratio calculation
+      if (fsh > 0 && lh > 0) {
+        const fsh_lh_ratio = (fsh / lh).toFixed(2);
+        document.getElementById("FSH_LH").value = fsh_lh_ratio;
+      }
+    }
+    
+    // *** FUNCTION FOR OCR UPLOAD AND AUTO-FILL ***
+    async function uploadReport() {
+        const fileInput = document.getElementById('reportImage');
+        const statusElement = document.getElementById('ocrStatus');
+        
+        if (fileInput.files.length === 0) {
+            statusElement.textContent = "Please select a file to upload.";
+            statusElement.className = "mt-4 text-sm text-red-600";
+            return;
+        }
+
+        statusElement.textContent = "Scanning report and extracting data...";
+        statusElement.className = "mt-4 text-sm text-blue-600 font-semibold";
+        
+        // 1. Prepare Form Data
+        const formData = new FormData();
+        formData.append('report_image', fileInput.files[0]);
+
+        try {
+            // 2. Send data to Flask backend OCR route
+            const response = await fetch('/doctor/ocr_process', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                const extractedData = result.data;
+                let fieldsFilled = 0;
+                
+                // 3. Loop through extracted data and auto-fill the fields
+                for (const [key, value] of Object.entries(extractedData)) {
+                    const field = document.getElementById(key);
+                    if (field) {
+                        field.value = value;
+                        fieldsFilled++;
+                        
+                        // Manually trigger input events for auto-calculated fields (BMI, Ratio)
+                        if (key === 'Height' || key === 'Weight') {
+                            calculateBMI();
+                        }
+                        if (key === 'FSH' || key === 'LH' || key === 'Waist' || key === 'Hip') {
+                            calculateRatio();
+                        }
+                    }
+                }
+                
+                // 4. Update Status Message
+                if (fieldsFilled > 0) {
+                    statusElement.textContent = ✅ Data extraction complete. ${fieldsFilled} fields auto-filled.;
+                    statusElement.className = "mt-4 text-sm text-green-600 font-semibold";
+                } else {
+                    statusElement.textContent = "⚠ Extraction complete, but no data could be reliably matched to the fields.";
+                    statusElement.className = "mt-4 text-sm text-yellow-700 font-semibold";
+                }
+
+            } else {
+                statusElement.textContent = ❌ Error: ${result.message};
+                statusElement.className = "mt-4 text-sm text-red-600 font-semibold";
+            }
+
+        } catch (error) {
+            console.error('Fetch error:', error);
+            statusElement.textContent = "❌ Network or server error. Check console.";
+            statusElement.className = "mt-4 text-sm text-red-600 font-semibold";
+        }
+    }
+    function openImageAnalyzer() {
+      document.getElementById('imageAnalyzerModal').style.display = 'flex';
+    }
+
+    function closeImageAnalyzer() {
+      document.getElementById('imageAnalyzerModal').style.display = 'none';
+
+      // *** Clear previous results when closing ***
+      const resultDisplay = document.getElementById('cnnResultDisplay');
+      resultDisplay.innerHTML = ''; 
+    }
+
+    // --- NEW LLM CHAT FUNCTIONS ---
+
+    function openChatBot() {
+        document.getElementById('chatBotModal').style.display = 'flex';
+        // Auto-focus on the input when the chat opens
+        setTimeout(() => {
+            document.getElementById('llm-query-input').focus();
+        }, 10);
+    }
+
+    function closeChatBot() {
+        document.getElementById('chatBotModal').style.display = 'none';
+    }
+
+    async function sendLlmQuery() {
+        const queryInput = document.getElementById('llm-query-input');
+        const responseOutput = document.getElementById('llm-response-output');
+        const prompt = queryInput.value.trim();
+
+        if (!prompt) return;
+
+        // Display user's question immediately
+        responseOutput.innerHTML += <div class="p-3 bg-blue-100 text-blue-900 rounded-lg self-end max-w-xs mb-2"><strong>You:</strong> ${prompt}</div>;
+        
+        // Show loading state and scroll to the bottom
+        const thinkingMessage = document.createElement('div');
+        thinkingMessage.id = 'thinking-message';
+        thinkingMessage.className = 'p-3 bg-gray-200 text-gray-700 rounded-lg self-start max-w-sm mb-2';
+        thinkingMessage.textContent = 'TinyLlama is thinking...';
+        responseOutput.appendChild(thinkingMessage);
+        responseOutput.scrollTop = responseOutput.scrollHeight;
+
+        queryInput.value = ''; // Clear input
+
+        try {
+            const response = await fetch('/api/llm_query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: prompt })
+            });
+
+            const data = await response.json();
+            
+            // Remove the thinking message
+            thinkingMessage.remove();
+
+            if (data.status === 'success') {
+                // Display the TinyLlama's response
+                responseOutput.innerHTML += <div class="p-3 bg-green-100 text-green-900 rounded-lg self-start max-w-sm mb-2"><strong>AI Assistant:</strong> ${data.llm_response}</div>;
+            } else {
+                // Display error messages
+                responseOutput.innerHTML += <div class="p-3 bg-red-100 text-red-700 rounded-lg self-start max-w-sm mb-2"><strong>Error:</strong> ${data.message}</div>;
+            }
+        } catch (error) {
+            console.error('Fetch error:', error);
+            // Remove the thinking message if it still exists
+            if (document.getElementById('thinking-message')) {
+                document.getElementById('thinking-message').remove();
+            }
+            responseOutput.innerHTML += <div class="p-3 bg-red-100 text-red-700 rounded-lg self-start max-w-sm mb-2"><strong>Error:</strong> Network or server error.</div>;
+        }
+        
+        // Scroll to the latest message
+        responseOutput.scrollTop = responseOutput.scrollHeight;
+    }
+
+
+    // --- Automatically open modal on page load if results are present ---
+    document.addEventListener('DOMContentLoaded', (event) => {
+        // Check if a prediction result exists in the HTML, indicating a recent submission
+        const resultDisplay = document.getElementById('cnnResultDisplay');
+        if (resultDisplay && resultDisplay.children.length > 0 && resultDisplay.innerText.trim() !== '') {
+            openImageAnalyzer();
+        }
+    });
+
+    </script>
+</head>
+<body class="bg-gray-100">
+  <nav class="bg-green-700 text-white px-6 py-4 flex justify-between">
+    <h1 class="font-bold text-xl">Doctor Dashboard</h1>
+    <a href="/logout" class="underline text-sm">Logout</a>
+  </nav>
+  
+  <section class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow mt-8">
+    <h2 class="text-2xl font-bold text-gray-700 mb-6 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        Upload Lab Report for Auto-Fill
+    </h2>
+    <form id="ocrForm" enctype="multipart/form-data">
+      <div class="flex items-center space-x-4">
+        <label class="block w-full">
+            <span class="sr-only">Choose file</span>
+            <input type="file" id="reportImage" name="report_image" accept="image/*,.pdf" class="block w-full text-sm text-gray-500
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-full file:border-0
+              file:text-sm file:font-semibold
+              file:bg-green-50 file:text-green-700
+              hover:file:bg-green-100
+              border rounded-lg p-2" required
+            />
+        </label>
+        <button type="button" onclick="uploadReport()" class="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 font-semibold flex-shrink-0">
+          Scan & Auto-Fill Fields
+        </button>
+      </div>
+    </form>
+    <p id="ocrStatus" class="mt-4 text-sm text-gray-600"></p>
+  </section>
+
+  <hr class="my-10 border-gray-300">
+
+  <section class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow mb-8 relative">
+    <div class="absolute top-8 right-8">
+      <button onclick="openImageAnalyzer()" class="bg-indigo-600 text-white py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 font-semibold flex items-center transition duration-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4.5-4.5 2.5 2.5 4-4V15z" clip-rule="evenodd" />
+        </svg>
+        USG Image Analyzer (CNN)
+      </button>
+    </div>
+
+    <h2 class="text-2xl font-bold text-green-700 mb-6 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M5.636 5.636l-.707.707m12.728 0a8 8 0 11-14.166 0m-.002-.002h.002" />
+        </svg>
+        PCOS ML-Based Prediction
+    </h2>
+    
+    <form action="/doctor/ml_predict" method="POST" class="grid grid-cols-4 gap-4">
+      
+      <input id="Age" name="Age" type="number" step="1" min="1" placeholder="Age (yrs)" class="border p-2 rounded" required>
+      <input id="Height" name="Height" type="number" step="0.01" min="0" placeholder="Height (cm)" class="border p-2 rounded" oninput="calculateBMI()">
+      <input id="Weight" name="Weight" type="number" step="0.01" min="0" placeholder="Weight (kg)" class="border p-2 rounded" oninput="calculateBMI()">
+      <input id="BMI" name="BMI" placeholder="BMI (auto)" class="border p-2 rounded bg-gray-100" readonly>
+      
+      <select id="Blood_Group" name="blood_group" class="border p-2 rounded">
+        <option value="">Blood Group</option>
+        <option value="A+">A+</option>
+        <option value="A-">A-</option>
+        <option value="B+">B+</option>
+        <option value="B-">B-</option>
+        <option value="O+">O+</option>
+        <option value="O-">O-</option>
+        <option value="AB+">AB+</option>
+        <option value="AB-">AB-</option>
+      </select>
+      <input id="Pulse_ratebpm" name="Pulse_rate" type="number" step="0.1" min="0" placeholder="Pulse Rate (bpm)" class="border p-2 rounded">
+      <input id="RR_breathsmin" name="RR" type="number" step="0.1" min="0" placeholder="RR (breaths/min)" class="border p-2 rounded">
+      <input id="Hbgdl" name="Hb" type="number" step="0.1" min="0" placeholder="Hemoglobin (g/dl)" class="border p-2 rounded">
+
+      <input id="Waist" name="Waist_inch" type="number" step="0.1" min="0" placeholder="Waist (inch)" class="border p-2 rounded" oninput="calculateRatio()">
+      <input id="Hip" name="Hip_inch" type="number" step="0.1" min="0" placeholder="Hip (inch)" class="border p-2 rounded" oninput="calculateRatio()">
+      <input id="Waist_Hip_Ratio" name="Waist_Hip_Ratio" placeholder="W:H Ratio (auto)" class="border p-2 rounded bg-gray-100" readonly>
+      <input id="BP_Systolic" name="BP_Systolic" type="number" step="1" min="0" placeholder="BP Systolic (mmHg)" class="border p-2 rounded">
+      
+      <input id="BP_Diastolic" name="BP_Diastolic" type="number" step="1" min="0" placeholder="BP Diastolic (mmHg)" class="border p-2 rounded">
+      <input id="Cycle_RI" name="Cycle_RI" type="number" step="1" min="0" max="1" placeholder="Cycle R/I (1=I, 0=R)" class="border p-2 rounded">
+      <input id="Cycle_lengthdays" name="Cycle_length" type="number" step="1" min="0" placeholder="Cycle Length (days)" class="border p-2 rounded">
+      <select id="PregnantYN" name="Pregnant_YN" class="border p-2 rounded">
+        <option value="0">Not Pregnant</option>
+        <option value="1">Pregnant</option>
+      </select>
+      
+      <input id="No_of_aborptions" name="No_of_aborptions" type="number" step="1" min="0" placeholder="No. of Abortions" class="border p-2 rounded">
+      <input id="beta_HCG_I" name="beta_HCG_I" type="number" step="0.1" min="0" placeholder="β-HCG I (mIU/mL)" class="border p-2 rounded">
+      <input id="beta_HCG_II" name="beta_HCG_II" type="number" step="0.1" min="0" placeholder="β-HCG II (mIU/mL)" class="border p-2 rounded">
+      <div class="col-span-1"></div> 
+      <input id="Follicle_No_L" name="Follicle_No_L" type="number" step="1" min="0" placeholder="Follicle No. (L)" class="border p-2 rounded">
+      <input id="Follicle_No_R" name="Follicle_No_R" type="number" step="1" min="0" placeholder="Follicle No. (R)" class="border p-2 rounded">
+      <input id="Avg_F_size_L" name="Avg_F_size_L" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (L)" class="border p-2 rounded">
+      <input id="Avg_F_size_R" name="Avg_F_size_R" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (R)" class="border p-2 rounded">
+      
+      <input id="Endometrium" name="Endometrium" type="number" step="0.1" min="0" placeholder="Endometrium (mm)" class="border p-2 rounded">
+      <input id="FSH" name="FSH" type="number" step="0.1" min="0" placeholder="FSH (mIU/mL)" class="border p-2 rounded" oninput="calculateRatio()">
+      <input id="LH" name="LH" type="number" step="0.1" min="0" placeholder="LH (mIU/mL)" class="border p-2 rounded" oninput="calculateRatio()">
+      <input id="FSH_LH" name="FSH_LH" placeholder="FSH/LH Ratio (auto)" class="border p-2 rounded bg-gray-100" readonly>
+      
+      <input id="TSH" name="TSH" type="number" step="0.1" min="0" placeholder="TSH (mIU/L)" class="border p-2 rounded">
+      <input id="AMH" name="AMH" type="number" step="0.1" min="0" placeholder="AMH (ng/mL)" class="border p-2 rounded">
+      <input id="PRL" name="PRL" type="number" step="0.1" min="0" placeholder="PRL (ng/mL)" class="border p-2 rounded">
+      <input id="VitD3" name="Vit_D3" type="number" step="0.1" min="0" placeholder="Vit D3 (ng/mL)" class="border p-2 rounded">
+      
+      <input id="PRG" name="PRG" type="number" step="0.1" min="0" placeholder="PRG (ng/mL)" class="border p-2 rounded">
+      <input id="RBS" name="RBS" type="number" step="0.1" min="0" placeholder="RBS (mg/dl)" class="border p-2 rounded">
+      <div class="col-span-2"></div> 
+      <select id="Weight_gain" name="Weight_gain" class="border p-2 rounded">
+        <option value="0">No Weight Gain </option>
+        <option value="1">Weight Gain </option>
+      </select>
+      <select id="hair_growth" name="hair_growth" class="border p-2 rounded">
+        <option value="0">Normal Hair </option>
+        <option value="1">Excess Hair </option>
+      </select>
+      <select id="Skin_darkening" name="Skin_darkening" class="border p-2 rounded">
+        <option value="0">No Skin Darkening </option>
+        <option value="1">Skin Darkening </option>
+      </select>
+      <select id="Hair_loss" name="Hair_loss" class="border p-2 rounded">
+        <option value="0">No Hair Loss </option>
+        <option value="1">Hair Loss </option>
+      </select>
+      
+      <select id="Pimples" name="Pimples" class="border p-2 rounded">
+        <option value="0">No Pimples </option>
+        <option value="1">Pimples </option>
+      </select>
+      <select id="Fast_food" name="Fast_food" class="border p-2 rounded">
+        <option value="0">No Fast Food </option>
+        <option value="1">Fast Food </option>
+      </select>
+      <select id="Reg_Exercise" name="Reg_Exercise" class="border p-2 rounded">
+        <option value="1">Regular Exercise </option>
+        <option value="0">No Exercise </option>
+      </select>
+      <div class="col-span-1"></div> 
+      <button type="submit" class="col-span-4 bg-green-700 text-white py-3 mt-4 rounded hover:bg-green-800 font-semibold">
+        🔍 Predict PCOS
+      </button>
+    </form>
+  </section>
+
+<div id="imageAnalyzerModal" class="modal-overlay">
+    <div class="max-w-4xl w-full bg-white shadow-2xl rounded-xl p-8 relative max-h-[90vh] overflow-y-auto">
+      
+        <button onclick="closeImageAnalyzer()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 text-3xl font-bold">
+            &times;
+        </button>
+
+        <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3 text-pink-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.243 3.03a1 1 0 01.727 1.213L9.53 6h2.94a1 1 0 01.728 1.213l-.53 1.06a1 1 0 01-.728.513H9.53l.44-2.203a.5.5 0 00-.98-.194l-.44 2.203H6.46a1 1 0 01-.727-1.213l.53-1.06A1 1 0 017.47 6h2.94z" clip-rule="evenodd" />
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.5-6.5a.5.5 0 011 0V13a.5.5 0 01-1 0v-1.5z" clip-rule="evenodd" />
+            </svg>
+            PCOS Sonogram Analyzer (U-Net Segmentation)
+        </h1>
+
+        <!-- UPDATED FORM: now uses /unet_predict -->
+        <form method="POST" action="/unet_predict" enctype="multipart/form-data" class="space-y-6">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-500 transition duration-300">
+                <label for="file-upload" class="cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-600">Drag and drop or click to upload Sonogram Image (.jpg, .png)</p>
+                </label>
+                <input id="file-upload" type="file" name="file" accept="image/*" class="sr-only">
+            </div>
+            
+            <button type="submit" class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                Analyze Image
+            </button>
+        </form>
+
+        <!-- U-NET RESULTS DISPLAY -->
+        <div id="unetResultDisplay" class="mt-8">
+
+            {% if unet_error %}
+            <div class="p-4 bg-red-100 text-red-700 rounded-lg border-l-4 border-red-500 font-medium">
+                Error: {{ unet_error }}
+            </div>
+
+            {% elif unet_mask and unet_overlay %}
+            <div class="space-y-8">
+                <h2 class="text-2xl font-semibold text-gray-800 border-b pb-2">Tumor Segmentation Result</h2>
+
+                <!-- MASK -->
+                <div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Predicted Mask</h3>
+                    <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
+                        <img src="data:image/png;base64,{{ unet_mask }}" 
+                             alt="Mask" 
+                             class="max-w-full h-auto rounded-lg shadow-md" 
+                             style="max-height: 400px;">
+                    </div>
+                </div>
+
+                <!-- OVERLAY -->
+                <div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Overlay on Original Image</h3>
+                    <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
+                        <img src="data:image/png;base64,{{ unet_overlay }}" 
+                             alt="Overlay" 
+                             class="max-w-full h-auto rounded-lg shadow-md" 
+                             style="max-height: 400px;">
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2 text-center">
+                        Green-highlighted region represents detected lesion/tumor area.
+                    </p>
+                </div>
+
+            </div>
+
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<button onclick="openChatBot()" 
+    class="fixed bottom-6 right-6 p-4 bg-pink-600 text-white rounded-full shadow-lg hover:bg-pink-700 transition duration-300 z-50">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+    </svg>
+</button>
+
+<div id="chatBotModal" class="chat-modal-overlay">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm h-full max-h-[600px] flex flex-col">
+        <div class="bg-pink-600 text-white p-4 flex justify-between items-center rounded-t-lg">
+            <h3 class="text-lg font-bold">👩‍⚕ AI Medical Assistant</h3>
+            <button onclick="closeChatBot()" class="text-white hover:text-pink-100 text-xl font-bold">&times;</button>
+        </div>
+        
+        <div id="llm-response-output" class="flex-grow p-4 space-y-4 overflow-y-auto flex flex-col">
+            <div class="p-3 bg-gray-200 text-gray-700 rounded-lg self-start max-w-sm">
+                Hello! I'm your Medical AI assistant. Ask me a question about PCOS, lab results, or any general medical query.
+            </div>
+        </div>
+        
+        <div class="p-4 border-t border-gray-200">
+            <div class="flex space-x-2">
+                <input type="text" id="llm-query-input" placeholder="Type your question..." 
+                    class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500"
+                    onkeypress="if(event.key === 'Enter') sendLlmQuery()">
+                <button onclick="sendLlmQuery()" 
+                    class="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 flex-shrink-0">
+                    Send
+                </button>
+            </div>
+            <!-- <p class="text-xs text-gray-500 mt-1">Powered by TinyLlama (local Ollama server)</p> -->
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
