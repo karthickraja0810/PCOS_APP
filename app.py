@@ -71,20 +71,23 @@ def unet_predict_mask(image_bytes):
     """
     Takes raw uploaded image bytes and returns (mask_b64, overlay_b64)
     """
+    # FIX: Get the model using the lazy loader
+    model = get_unet_model()
+    if model is None:
+        raise Exception("U-Net model could not be loaded. Check memory limits or file path.")
 
     img_array = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
     orig_h, orig_w = img.shape[:2]
-
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
     resized = cv2.resize(img_rgb, UNET_IMG_SIZE)
 
     x = resized.astype("float32") / 255.0
     x = np.expand_dims(x, axis=0)
 
-    pred = unet_model.predict(x)[0]
+    # FIX: Use the 'model' variable returned by get_unet_model()
+    pred = model.predict(x)[0]
     mask = (pred > 0.5).astype(np.uint8)
 
     mask_resized = cv2.resize(mask, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
@@ -640,12 +643,14 @@ def hcw_logout():
 def llm_query():
     if request.method == "GET":
         return redirect(url_for("doctor_dashboard"))
-    # Optional: Basic authentication check, though the chat is accessible from doctor dashboard
+    
     if session.get('role') not in ['doctor', 'admin']:
-        return jsonify({'status': 'error', 'message': 'Authentication required for chat.'}), 403
+        return jsonify({'status': 'error', 'message': 'Authentication required.'}), 403
 
-    if client is None:
-        return jsonify({'status': 'error', 'message': 'AI Assistant is unavailable (Gemini client not initialized).'}), 503
+    # FIX: Get client inside the route
+    current_client = get_gemini_client()
+    if current_client is None:
+        return jsonify({'status': 'error', 'message': 'Gemini API Key missing.'}), 503
 
     try:
         data = request.get_json()
@@ -653,38 +658,21 @@ def llm_query():
         if not prompt:
             return jsonify({'status': 'error', 'message': 'No prompt provided.'}), 400
 
-        # Create a simple, contained prompt for the assistant
         full_prompt = (
             "You are a helpful and medically knowledgeable AI assistant specializing in PCOS. "
-            "Respond to the following doctor's query concisely and accurately: "
+            "Respond to the following doctor's query concisely: "
             f"'{prompt}'"
         )
         
-        # Call the Gemini API
         response = retry_gemini_call(
-            client.models.generate_content,
+            current_client.models.generate_content,
             model=GEMINI_MODEL,
             contents=[full_prompt]
         )
         
-        return jsonify({
-            'status': 'success',
-            'llm_response': response.text
-        })
-        
-    except APIError as e:
-        print(f"Gemini API Error: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': f'Gemini API Error: {e}. Check server logs.'
-        }), 500
+        return jsonify({'status': 'success', 'llm_response': response.text})
     except Exception as e:
-        print(f"LLM Query Processing Error: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': 'An unexpected error occurred on the server.'
-        }), 500
-
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 # ====================================================
 #        AGENTIC PCOS CLINICAL REPORT GENERATOR
 # ====================================================
