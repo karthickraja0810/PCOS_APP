@@ -186,13 +186,19 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 #                DATABASE INITIALIZATION
 # ====================================================
 
+# Get the absolute path to ensure Render finds the file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+db_path = os.path.join(BASE_DIR, "pcos.db")
+
 def init_db():
-    if not os.path.exists("pcos.db"):
-        conn = sqlite3.connect("pcos.db")
+    # Only create if it doesn't exist
+    if not os.path.exists(db_path):
+        print(f"Database not found at {db_path}. Creating new database...")
+        conn = sqlite3.connect(db_path)
         c = conn.cursor()
 
         c.execute("""
-            CREATE TABLE users (
+            CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
                 email TEXT UNIQUE,
@@ -202,7 +208,7 @@ def init_db():
         """)
 
         c.execute("""
-            CREATE TABLE patients (
+            CREATE TABLE IF NOT EXISTS patients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 cycle TEXT,
                 weight REAL,
@@ -211,25 +217,29 @@ def init_db():
             )
         """)
 
-        c.execute("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
-                  ("Admin", "admin@hospital.com", "admin123", "admin"))
+        # Add default admin if not present
+        c.execute("SELECT * FROM users WHERE email = 'admin@hospital.com'")
+        if not c.fetchone():
+            c.execute("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
+                      ("Admin", "admin@hospital.com", "admin123", "admin"))
 
         conn.commit()
         conn.close()
-        print("Database created.")
+        print("Database initialized successfully.")
+    else:
+        print("Database already exists. Skipping initialization.")
 
+# Run the initialization
 init_db()
 
-
-# Get the absolute path of the directory where app.py is located
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(BASE_DIR, "pcos.db")
-
 def get_db_connection():
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
-
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.Error as e:
+        print(f"Database Connection Error: {e}")
+        return None
 
 # ====================================================
 #                    FLASK ROUTES
@@ -355,10 +365,15 @@ def hcw_home():
 def hcw_login():
     if request.method == "GET":
         return redirect(url_for("hcw_home"))
+        
     email = request.form["email"]
     password = request.form["password"]
 
     conn = get_db_connection()
+    if conn is None:
+        flash("Database connection error. Please try again later.", "error")
+        return redirect(url_for("hcw_home"))
+
     user = conn.execute(
         "SELECT * FROM users WHERE email = ? AND password = ?",
         (email, password)
@@ -375,7 +390,7 @@ def hcw_login():
         else:
             return redirect(url_for("doctor_dashboard"))
     else:
-        flash("Invalid login", "error")
+        flash("Invalid email or password", "error")
         return redirect(url_for("hcw_home"))
     
 @app.route('/doctor/ocr_process', methods=['GET', 'POST'])
@@ -753,9 +768,6 @@ Write clearly and professionally.
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
-
-
-
 
 # ====================================================
 #                    MAIN
