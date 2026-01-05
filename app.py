@@ -47,13 +47,16 @@ def dice_loss(y_true, y_pred):
 # 2. Set the global variable to None initially
 unet_model = None
 
-# 3. The Loader Function (Modified to load eagerly if possible)
+# 3. The Optimized Lazy Loader Function
 def get_unet_model():
-    """Load the model and return it."""
+    """Lazy load the model only when a user requests a prediction to save memory."""
     global unet_model
     if unet_model is None:
-        print("Loading U-Net Model into memory...")
+        print("Lazy Loading U-Net Model into memory...")
         try:
+            # Clear any previous sessions to free memory before loading large model
+            tf.keras.backend.clear_session()
+            
             # Using CPU device explicitly helps Render's stability
             with tf.device('/cpu:0'):
                 unet_model = load_model(
@@ -66,8 +69,7 @@ def get_unet_model():
             print(f"ERROR loading U-Net model: {e}")
     return unet_model
 
-# Eagerly load model at startup to prevent request timeouts on Render
-get_unet_model()
+# Removed eager load to prevent OOM on app startup in Render's free tier
 
 
 def unet_predict_mask(image_bytes):
@@ -113,8 +115,8 @@ def unet_predict_mask(image_bytes):
 #                 GEMINI CLIENT (OCR + Q&A)
 # ====================================================
 
-# Use 1.5-flash for better stability and speed on free tier
-GEMINI_MODEL = "gemini-1.5-flash"
+# Use 'gemini-1.5-flash-latest' for better stability and to avoid 404 issues
+GEMINI_MODEL = "gemini-1.5-flash-latest"
 
 def get_gemini_client():
     # Clean the API key to handle common Render configuration errors (extra spaces or quotes)
