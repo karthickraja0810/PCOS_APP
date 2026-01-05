@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,10 +11,13 @@
     /* Modal base */
     .modal-overlay {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.7);
-      display: none; /* shown by JS */
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: none;
+      /* shown by JS */
       justify-content: center;
       align-items: center;
       z-index: 1000;
@@ -22,9 +26,11 @@
     /* Chat modal */
     .chat-modal-overlay {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.5);
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
       display: none;
       justify-content: flex-end;
       align-items: flex-end;
@@ -43,6 +49,7 @@
       width: 24px;
       height: 24px;
     }
+
     .lds-ring div {
       box-sizing: border-box;
       display: block;
@@ -52,15 +59,30 @@
       margin: 3px;
       border: 3px solid #4f46e5;
       border-radius: 50%;
-      animation: lds-ring 1.2s cubic-bezier(.5,.0,.5,1) infinite;
+      animation: lds-ring 1.2s cubic-bezier(.5, .0, .5, 1) infinite;
       border-color: #4f46e5 transparent transparent transparent;
     }
-    .lds-ring div:nth-child(1) { animation-delay: -0.45s; }
-    .lds-ring div:nth-child(2) { animation-delay: -0.3s; }
-    .lds-ring div:nth-child(3) { animation-delay: -0.15s; }
+
+    .lds-ring div:nth-child(1) {
+      animation-delay: -0.45s;
+    }
+
+    .lds-ring div:nth-child(2) {
+      animation-delay: -0.3s;
+    }
+
+    .lds-ring div:nth-child(3) {
+      animation-delay: -0.15s;
+    }
+
     @keyframes lds-ring {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
   </style>
 
@@ -130,7 +152,7 @@
               el.value = v;
               filled++;
               if (k === 'Height' || k === 'Weight') calculateBMI();
-              if (['FSH','LH','Waist','Hip'].includes(k)) calculateRatio();
+              if (['FSH', 'LH', 'Waist', 'Hip'].includes(k)) calculateRatio();
             }
           }
           if (filled > 0) {
@@ -254,7 +276,7 @@
     // -------------------- LLM Chat (small) --------------------
     function openChatBot() {
       document.getElementById('chatBotModal').style.display = 'flex';
-      setTimeout(()=> document.getElementById('llm-query-input').focus(), 10);
+      setTimeout(() => document.getElementById('llm-query-input').focus(), 10);
     }
     function closeChatBot() { document.getElementById('chatBotModal').style.display = 'none'; }
 
@@ -274,8 +296,8 @@
       try {
         const res = await fetch('/api/llm_query', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({prompt})
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
         });
         const data = await res.json();
         thinking.remove();
@@ -300,55 +322,60 @@
       }
     });
     async function generateAgenticReport() {
-    const form = document.querySelector("form[action='/doctor/ml_predict']");
-    const formData = new FormData(form);
+      const form = document.querySelector("form[action='/doctor/ml_predict']");
+      const formData = new FormData(form);
 
-    let jsonData = {};
-    formData.forEach((v, k) => { jsonData[k] = v; });
+      let jsonData = {};
+      formData.forEach((v, k) => { jsonData[k] = v; });
 
-    const res = await fetch("/doctor/pcos_agent_report", {
+      const res = await fetch("/doctor/pcos_agent_report", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(jsonData)
-    });
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (data.status === "success") {
+      if (data.status === "success") {
         alert("----- AGENTIC PCOS REPORT -----\n\n" + data.report);
-    } else {
+      } else {
         alert("Error: " + data.message);
+      }
     }
-}
-     </script>
+  </script>
 </head>
 
 <body class="bg-gray-100 font-sans">
   <!-- NAV -->
-  <nav class="bg-green-700 text-white px-6 py-4 flex justify-between">
-    <h1 class="font-bold text-xl">Doctor Dashboard</h1>
-    <a href="/logout" class="underline text-sm hover:text-green-200 transition">Logout</a>
+  <nav class="bg-green-700 text-white px-4 sm:px-6 py-4 flex justify-between items-center">
+    <h1 class="font-bold text-lg sm:text-xl">Doctor Dashboard</h1>
+    <a href="/logout" class="underline text-sm hover:text-green-200 transition whitespace-nowrap ml-4">Logout</a>
   </nav>
 
   <!-- OCR SECTION -->
-  <section class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow mt-8">
-    <h2 class="text-2xl font-bold text-gray-700 mb-6 flex items-center">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+  <section class="max-w-6xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow mt-4 sm:mt-8">
+    <h2 class="text-xl sm:text-2xl font-bold text-gray-700 mb-6 flex items-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-blue-600" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
       </svg>
       Upload Lab Report for Auto-Fill (OCR)
     </h2>
 
     <form id="ocrForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadReport();">
-      <div class="flex items-center space-x-4">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
         <label class="block w-full">
           <span class="sr-only">Choose file</span>
-          <input type="file" id="reportImage" name="report_image" accept="image/*,.pdf" class="block w-full text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border rounded-lg p-2" required />
+          <input type="file" id="reportImage" name="report_image" accept="image/*,.pdf"
+            class="block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border rounded-lg p-2"
+            required />
         </label>
 
-        <button type="button" onclick="uploadReport()" class="bg-blue-600 text-white py-2 px-6 rounded-lg shadow-md hover:bg-blue-700 font-semibold transition duration-200">
-          Scan & Auto-Fill Fields
+        <button type="button" onclick="uploadReport()"
+          class="bg-blue-600 text-white py-2 px-6 rounded-lg shadow-md hover:bg-blue-700 font-semibold transition duration-200 whitespace-nowrap">
+          Scan & Auto-Fill
         </button>
       </div>
     </form>
@@ -359,27 +386,36 @@
   <hr class="my-10 border-gray-300">
 
   <!-- ML FORM -->
-  <section class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow mb-8 relative">
-    <div class="absolute top-8 right-8">
-      <button onclick="openImageAnalyzer()" class="bg-indigo-600 text-white py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 font-semibold flex items-center transition duration-200">
+  <section class="max-w-6xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow mb-8 relative">
+    <div class="sm:absolute sm:top-8 sm:right-8 mb-6 sm:mb-0">
+      <button onclick="openImageAnalyzer()"
+        class="w-full sm:w-auto bg-indigo-600 text-white py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 font-semibold flex items-center justify-center transition duration-200">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4.5-4.5 2.5 2.5 4-4V15z" clip-rule="evenodd" />
+          <path fill-rule="evenodd"
+            d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4.5-4.5 2.5 2.5 4-4V15z"
+            clip-rule="evenodd" />
         </svg>
         USG Image Analyzer (U-Net)
       </button>
     </div>
 
-    <h2 class="text-2xl font-bold text-green-700 mb-6 flex items-center">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M5.636 5.636l-.707.707m12.728 0a8 8 0 11-14.166 0m-.002-.002h.002" />
+    <h2 class="text-xl sm:text-2xl font-bold text-green-700 mb-6 flex items-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-pink-500" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M5.636 5.636l-.707.707m12.728 0a8 8 0 11-14.166 0m-.002-.002h.002" />
       </svg>
       PCOS ML-Based Prediction
     </h2>
 
-    <form action="/doctor/ml_predict" method="POST" class="grid grid-cols-4 gap-4">
-      <input id="Age" name="Age" type="number" step="1" min="1" placeholder="Age (yrs)" class="border p-2 rounded" required>
-      <input id="Height" name="Height" type="number" step="0.01" min="0" placeholder="Height (cm)" class="border p-2 rounded" oninput="calculateBMI()">
-      <input id="Weight" name="Weight" type="number" step="0.01" min="0" placeholder="Weight (kg)" class="border p-2 rounded" oninput="calculateBMI()">
+    <form action="/doctor/ml_predict" method="POST"
+      class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <input id="Age" name="Age" type="number" step="1" min="1" placeholder="Age (yrs)" class="border p-2 rounded"
+        required>
+      <input id="Height" name="Height" type="number" step="0.01" min="0" placeholder="Height (cm)"
+        class="border p-2 rounded" oninput="calculateBMI()">
+      <input id="Weight" name="Weight" type="number" step="0.01" min="0" placeholder="Weight (kg)"
+        class="border p-2 rounded" oninput="calculateBMI()">
       <input id="BMI" name="BMI" placeholder="BMI (auto)" class="border p-2 rounded bg-gray-100" readonly>
 
       <select id="Blood_Group" name="blood_group" class="border p-2 rounded">
@@ -394,50 +430,70 @@
         <option value="AB-">AB-</option>
       </select>
 
-      <input id="Pulse_ratebpm" name="Pulse_rate" type="number" step="0.1" min="0" placeholder="Pulse Rate (bpm)" class="border p-2 rounded">
-      <input id="RR_breathsmin" name="RR" type="number" step="0.1" min="0" placeholder="RR (breaths/min)" class="border p-2 rounded">
-      <input id="Hbgdl" name="Hb" type="number" step="0.1" min="0" placeholder="Hemoglobin (g/dl)" class="border p-2 rounded">
+      <input id="Pulse_ratebpm" name="Pulse_rate" type="number" step="0.1" min="0" placeholder="Pulse Rate (bpm)"
+        class="border p-2 rounded">
+      <input id="RR_breathsmin" name="RR" type="number" step="0.1" min="0" placeholder="RR (breaths/min)"
+        class="border p-2 rounded">
+      <input id="Hbgdl" name="Hb" type="number" step="0.1" min="0" placeholder="Hemoglobin (g/dl)"
+        class="border p-2 rounded">
 
-      <input id="Waist" name="Waist_inch" type="number" step="0.1" min="0" placeholder="Waist (inch)" class="border p-2 rounded" oninput="calculateRatio()">
-      <input id="Hip" name="Hip" type="number" step="0.1" min="0" placeholder="Hip (inch)" class="border p-2 rounded" oninput="calculateRatio()">
-      <input id="Waist_Hip_Ratio" name="Waist_Hip_Ratio" placeholder="W:H Ratio (auto)" class="border p-2 rounded bg-gray-100" readonly>
-      <input id="BP_Systolic" name="BP_Systolic" type="number" step="1" min="0" placeholder="BP Systolic (mmHg)" class="border p-2 rounded">
+      <input id="Waist" name="Waist_inch" type="number" step="0.1" min="0" placeholder="Waist (inch)"
+        class="border p-2 rounded" oninput="calculateRatio()">
+      <input id="Hip" name="Hip" type="number" step="0.1" min="0" placeholder="Hip (inch)" class="border p-2 rounded"
+        oninput="calculateRatio()">
+      <input id="Waist_Hip_Ratio" name="Waist_Hip_Ratio" placeholder="W:H Ratio (auto)"
+        class="border p-2 rounded bg-gray-100" readonly>
+      <input id="BP_Systolic" name="BP_Systolic" type="number" step="1" min="0" placeholder="BP Systolic (mmHg)"
+        class="border p-2 rounded">
 
-      <input id="BP_Diastolic" name="BP_Diastolic" type="number" step="1" min="0" placeholder="BP Diastolic (mmHg)" class="border p-2 rounded">
-      <input id="Cycle_RI" name="Cycle_RI" type="number" step="1" min="0" max="1" placeholder="Cycle R/I (1=I, 0=R)" class="border p-2 rounded">
-      <input id="Cycle_lengthdays" name="Cycle_length" type="number" step="1" min="0" placeholder="Cycle Length (days)" class="border p-2 rounded">
+      <input id="BP_Diastolic" name="BP_Diastolic" type="number" step="1" min="0" placeholder="BP Diastolic (mmHg)"
+        class="border p-2 rounded">
+      <input id="Cycle_RI" name="Cycle_RI" type="number" step="1" min="0" max="1" placeholder="Cycle R/I (1=I, 0=R)"
+        class="border p-2 rounded">
+      <input id="Cycle_lengthdays" name="Cycle_length" type="number" step="1" min="0" placeholder="Cycle Length (days)"
+        class="border p-2 rounded">
 
       <select id="PregnantYN" name="Pregnant_YN" class="border p-2 rounded">
         <option value="0">Not Pregnant</option>
         <option value="1">Pregnant</option>
       </select>
 
-      <input id="No_of_aborptions" name="No_of_aborptions" type="number" step="1" min="0" placeholder="No. of Abortions" class="border p-2 rounded">
-      <input id="beta_HCG_I" name="beta_HCG_I" type="number" step="0.1" min="0" placeholder="β-HCG I (mIU/mL)" class="border p-2 rounded">
-      <input id="beta_HCG_II" name="beta_HCG_II" type="number" step="0.1" min="0" placeholder="β-HCG II (mIU/mL)" class="border p-2 rounded">
+      <input id="No_of_aborptions" name="No_of_aborptions" type="number" step="1" min="0" placeholder="No. of Abortions"
+        class="border p-2 rounded">
+      <input id="beta_HCG_I" name="beta_HCG_I" type="number" step="0.1" min="0" placeholder="β-HCG I (mIU/mL)"
+        class="border p-2 rounded">
+      <input id="beta_HCG_II" name="beta_HCG_II" type="number" step="0.1" min="0" placeholder="β-HCG II (mIU/mL)"
+        class="border p-2 rounded">
 
       <div class="col-span-1"></div>
 
-      <input id="Follicle_No_L" name="Follicle_No_L" type="number" step="1" min="0" placeholder="Follicle No. (L)" class="border p-2 rounded">
-      <input id="Follicle_No_R" name="Follicle_No_R" type="number" step="1" min="0" placeholder="Follicle No. (R)" class="border p-2 rounded">
-      <input id="Avg_F_size_L" name="Avg_F_size_L" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (L)" class="border p-2 rounded">
-      <input id="Avg_F_size_R" name="Avg_F_size_R" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (R)" class="border p-2 rounded">
+      <input id="Follicle_No_L" name="Follicle_No_L" type="number" step="1" min="0" placeholder="Follicle No. (L)"
+        class="border p-2 rounded">
+      <input id="Follicle_No_R" name="Follicle_No_R" type="number" step="1" min="0" placeholder="Follicle No. (R)"
+        class="border p-2 rounded">
+      <input id="Avg_F_size_L" name="Avg_F_size_L" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (L)"
+        class="border p-2 rounded">
+      <input id="Avg_F_size_R" name="Avg_F_size_R" type="number" step="0.1" min="0" placeholder="Avg. Follicle Size (R)"
+        class="border p-2 rounded">
 
-      <input id="Endometrium" name="Endometrium" type="number" step="0.1" min="0" placeholder="Endometrium (mm)" class="border p-2 rounded">
+      <input id="Endometrium" name="Endometrium" type="number" step="0.1" min="0" placeholder="Endometrium (mm)"
+        class="border p-2 rounded">
 
-      <input id="FSH" name="FSH" type="number" step="0.1" min="0" placeholder="FSH (mIU/mL)" class="border p-2 rounded" oninput="calculateRatio()">
-      <input id="LH" name="LH" type="number" step="0.1" min="0" placeholder="LH (mIU/mL)" class="border p-2 rounded" oninput="calculateRatio()">
-      <input id="FSH_LH" name="FSH_LH" placeholder="FSH/LH Ratio (auto)" class="border p-2 rounded bg-gray-100" readonly>
+      <input id="FSH" name="FSH" type="number" step="0.1" min="0" placeholder="FSH (mIU/mL)" class="border p-2 rounded"
+        oninput="calculateRatio()">
+      <input id="LH" name="LH" type="number" step="0.1" min="0" placeholder="LH (mIU/mL)" class="border p-2 rounded"
+        oninput="calculateRatio()">
+      <input id="FSH_LH" name="FSH_LH" placeholder="FSH/LH Ratio (auto)"
+        class="border p-2 rounded bg-gray-100 mb-2 sm:mb-0" readonly>
 
       <input id="TSH" name="TSH" type="number" step="0.1" min="0" placeholder="TSH (mIU/L)" class="border p-2 rounded">
       <input id="AMH" name="AMH" type="number" step="0.1" min="0" placeholder="AMH (ng/mL)" class="border p-2 rounded">
       <input id="PRL" name="PRL" type="number" step="0.1" min="0" placeholder="PRL (ng/mL)" class="border p-2 rounded">
-      <input id="VitD3" name="Vit_D3" type="number" step="0.1" min="0" placeholder="Vit D3 (ng/mL)" class="border p-2 rounded">
+      <input id="VitD3" name="Vit_D3" type="number" step="0.1" min="0" placeholder="Vit D3 (ng/mL)"
+        class="border p-2 rounded">
 
       <input id="PRG" name="PRG" type="number" step="0.1" min="0" placeholder="PRG (ng/mL)" class="border p-2 rounded">
       <input id="RBS" name="RBS" type="number" step="0.1" min="0" placeholder="RBS (mg/dl)" class="border p-2 rounded">
-
-      <div class="col-span-2"></div>
 
       <select id="Weight_gain" name="Weight_gain" class="border p-2 rounded">
         <option value="0">No Weight Gain</option>
@@ -474,16 +530,13 @@
         <option value="0">No Exercise</option>
       </select>
 
-      <div class="col-span-1"></div>
+      <button type="button" onclick="generateAgenticReport()"
+        class="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 bg-pink-600 text-white py-3 mt-2 rounded hover:bg-pink-700 font-semibold transition duration-200">
+        🤖 Generate Clinical Agentic Report
+      </button>
 
-      <button type="button"
-        onclick="generateAgenticReport()"
-        class="col-span-4 bg-pink-600 text-white py-3 mt-2 rounded hover:bg-pink-700 font-semibold transition duration-200">
-    🤖 Generate Clinical Agentic Report
-</button>
-
-
-      <button type="submit" class="col-span-4 bg-green-700 text-white py-3 mt-4 rounded hover:bg-green-800 font-semibold transition duration-200">
+      <button type="submit"
+        class="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 bg-green-700 text-white py-3 mt-4 rounded hover:bg-green-800 font-semibold transition duration-200">
         🔍 Predict PCOS
       </button>
     </form>
@@ -492,57 +545,74 @@
   <!-- U-NET MODAL -->
   <div id="imageAnalyzerModal" class="modal-overlay">
     <div class="max-w-4xl w-full bg-white shadow-2xl rounded-xl p-8 relative max-h-[90vh] overflow-y-auto">
-      <button onclick="closeImageAnalyzer()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 text-3xl font-bold">&times;</button>
+      <button onclick="closeImageAnalyzer()"
+        class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 text-3xl font-bold">&times;</button>
 
-      <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3 text-pink-500" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M9.243 3.03a1 1 0 01.727 1.213L9.53 6h2.94a1 1 0 01.728 1.213l-.53 1.06a1 1 0 01-.728.513H9.53l.44-2.203a.5.5 0 00-.98-.194l-.44 2.203H6.46a1 1 0 01-.727-1.213l.53-1.06A1 1 0 017.47 6h2.94z" clip-rule="evenodd"/>
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.5-6.5a.5.5 0 011 0V13a.5.5 0 01-1 0v-1.5z" clip-rule="evenodd"/>
+      <h1
+        class="text-2xl sm:text-3xl font-bold text-center text-indigo-700 mb-6 flex flex-col sm:flex-row items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2 sm:mb-0 sm:mr-3 text-pink-500" viewBox="0 0 20 20"
+          fill="currentColor">
+          <path fill-rule="evenodd"
+            d="M9.243 3.03a1 1 0 01.727 1.213L9.53 6h2.94a1 1 0 01.728 1.213l-.53 1.06a1 1 0 01-.728.513H9.53l.44-2.203a.5.5 0 00-.98-.194l-.44 2.203H6.46a1 1 0 01-.727-1.213l.53-1.06A1 1 0 017.47 6h2.94z"
+            clip-rule="evenodd" />
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.5-6.5a.5.5 0 011 0V13a.5.5 0 01-1 0v-1.5z"
+            clip-rule="evenodd" />
         </svg>
-        PCOS Sonogram Analyzer (U-Net Segmentation)
+        <span class="text-center">PCOS Sonogram Analyzer</span>
       </h1>
 
       <form id="unetForm" onsubmit="analyzeImage(event)" class="space-y-6">
         <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-          <input id="unet-file-input" type="file" name="file" accept="image/*" class="block w-full text-sm text-gray-600 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" required>
+          <input id="unet-file-input" type="file" name="file" accept="image/*"
+            class="block w-full text-sm text-gray-600 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            required>
           <p class="mt-2 text-sm text-gray-600">Upload Sonogram Image (JPG / PNG)</p>
         </div>
 
-        <button type="submit" class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
+        <button type="submit"
+          class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
           Analyze Image
         </button>
       </form>
 
-      <div id="unet-loading-indicator" class="mt-8 p-4 bg-indigo-50 rounded-lg hidden justify-center items-center space-x-3 text-indigo-700 font-semibold">
-        <div class="lds-ring" aria-hidden="true"><div></div><div></div><div></div><div></div></div>
+      <div id="unet-loading-indicator"
+        class="mt-8 p-4 bg-indigo-50 rounded-lg hidden justify-center items-center space-x-3 text-indigo-700 font-semibold">
+        <div class="lds-ring" aria-hidden="true">
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+        </div>
         <span class="ml-3">Running U-Net model... This may take a moment.</span>
       </div>
 
       <div id="unetResultDisplay" class="mt-8">
         {% if unet_error %}
-          <div class="p-4 bg-red-100 text-red-700 rounded-lg border-l-4 border-red-500 font-medium">
-            Error: {{ unet_error }}
-          </div>
+        <div class="p-4 bg-red-100 text-red-700 rounded-lg border-l-4 border-red-500 font-medium">
+          Error: {{ unet_error }}
+        </div>
         {% elif unet_mask and unet_overlay %}
-          <div class="space-y-8">
-            <h2 class="text-2xl font-semibold text-gray-800 border-b pb-2">Segmentation Result</h2>
-            <div>
-              <h3 class="text-xl font-bold text-gray-700 mb-2">Predicted Mask</h3>
-              <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
-                <img src="data:image/png;base64,{{ unet_mask }}" class="max-w-full h-auto rounded-lg shadow-md" style="max-height:400px;">
-              </div>
-            </div>
-            <div>
-              <h3 class="text-xl font-bold text-gray-700 mb-2">Overlay on Original</h3>
-              <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
-                <img src="data:image/png;base64,{{ unet_overlay }}" class="max-w-full h-auto rounded-lg shadow-md" style="max-height:400px;">
-              </div>
+        <div class="space-y-8">
+          <h2 class="text-2xl font-semibold text-gray-800 border-b pb-2">Segmentation Result</h2>
+          <div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">Predicted Mask</h3>
+            <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
+              <img src="data:image/png;base64,{{ unet_mask }}" class="max-w-full h-auto rounded-lg shadow-md"
+                style="max-height:400px;">
             </div>
           </div>
+          <div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">Overlay on Original</h3>
+            <div class="bg-gray-100 p-4 rounded-lg flex justify-center">
+              <img src="data:image/png;base64,{{ unet_overlay }}" class="max-w-full h-auto rounded-lg shadow-md"
+                style="max-height:400px;">
+            </div>
+          </div>
+        </div>
         {% else %}
-          <div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg border-l-4 border-yellow-500 font-medium">
-            Upload an image above to see the U-Net analysis result here.
-          </div>
+        <div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg border-l-4 border-yellow-500 font-medium">
+          Upload an image above to see the U-Net analysis result here.
+        </div>
         {% endif %}
       </div>
 
@@ -550,9 +620,12 @@
   </div>
 
   <!-- CHATBOT BUTTON -->
-  <button onclick="openChatBot()" class="fixed bottom-6 right-6 p-4 bg-pink-600 text-white rounded-full shadow-lg hover:bg-pink-700 transition z-50">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+  <button onclick="openChatBot()"
+    class="fixed bottom-6 right-6 p-4 bg-pink-600 text-white rounded-full shadow-lg hover:bg-pink-700 transition z-50">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+      stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
     </svg>
   </button>
 
@@ -564,20 +637,23 @@
         <button onclick="closeChatBot()" class="text-white hover:text-pink-100 text-xl font-bold">&times;</button>
       </div>
 
-      <div id="llm-response-output" class="flex-grow p-4 space-y-4 overflow-y-auto flex flex-col">
-        <div class="p-3 bg-gray-200 text-gray-700 rounded-lg self-start max-w-sm">
+      <div id="llm-response-output" class="flex-grow p-4 space-y-4 overflow-y-auto flex flex-col text-sm sm:text-base">
+        <div class="p-3 bg-gray-200 text-gray-700 rounded-lg self-start max-w-[85%] sm:max-w-sm">
           Hello! I'm your Medical AI assistant. Ask me a question about PCOS, lab results, or any general medical query.
         </div>
       </div>
 
       <div class="p-4 border-t border-gray-200">
         <div class="flex space-x-2">
-          <input id="llm-query-input" type="text" placeholder="Ask medical question..." class="flex-grow p-2 border rounded-lg focus:ring-pink-500" />
-          <button onclick="sendLlmQuery()" class="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700">Send</button>
+          <input id="llm-query-input" type="text" placeholder="Ask medical question..."
+            class="flex-grow p-2 border rounded-lg focus:ring-pink-500 text-sm" />
+          <button onclick="sendLlmQuery()"
+            class="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 text-sm">Send</button>
         </div>
       </div>
     </div>
   </div>
 
 </body>
+
 </html>
