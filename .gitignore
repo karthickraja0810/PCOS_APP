@@ -1,4 +1,12 @@
+cat <<EOF > .gitignore
 venv/
 __pycache__/
 .DS_Store
 pcos.db
+temp_uploads/
+.env
+EOF
+# Ignore all data images
+data/train/
+data/test/
+data/validation/

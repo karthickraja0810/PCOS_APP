@@ -149,7 +149,16 @@ except Exception as e:
 # ====================================================
 
 app = Flask(__name__)
-app.secret_key = "super_secret_key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-long-random-string")
+
+# Ensure Gemini uses the API Key from your .env or Environment Settings
+client = None
+try:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
+    print("Gemini client initialized.")
+except Exception as e:
+    print("Gemini init error:", e)
 
 UPLOAD_FOLDER = "temp_uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -195,8 +204,12 @@ def init_db():
 init_db()
 
 
+# Get the absolute path of the directory where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+db_path = os.path.join(BASE_DIR, "pcos.db")
+
 def get_db_connection():
-    conn = sqlite3.connect("pcos.db")
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -740,4 +753,7 @@ Write clearly and professionally.
 # ====================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Use the port assigned by the host, default to 5000 for local testing
+    port = int(os.environ.get("PORT", 5000))
+    # Never use debug=True in production
+    app.run(host="0.0.0.0", port=port, debug=False)
