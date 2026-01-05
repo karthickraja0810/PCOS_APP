@@ -188,7 +188,8 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Get the absolute path to ensure Render finds the file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(BASE_DIR, "pcos.db")
+# Use environment variable for DB path if available (recommended for Persistent Disks)
+db_path = os.environ.get("DATABASE_PATH", os.path.join(BASE_DIR, "pcos.db"))
 
 def init_db():
     # Only create if it doesn't exist
