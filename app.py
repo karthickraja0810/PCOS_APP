@@ -47,9 +47,9 @@ def dice_loss(y_true, y_pred):
 # 2. Set the global variable to None initially
 unet_model = None
 
-# 3. The Lazy Loader Function
+# 3. The Loader Function (Modified to load eagerly if possible)
 def get_unet_model():
-    """Lazy load the model only when a user requests a prediction."""
+    """Load the model and return it."""
     global unet_model
     if unet_model is None:
         print("Loading U-Net Model into memory...")
@@ -65,6 +65,9 @@ def get_unet_model():
         except Exception as e:
             print(f"ERROR loading U-Net model: {e}")
     return unet_model
+
+# Eagerly load model at startup to prevent request timeouts on Render
+get_unet_model()
 
 
 def unet_predict_mask(image_bytes):
@@ -114,12 +117,15 @@ def unet_predict_mask(image_bytes):
 GEMINI_MODEL = "gemini-1.5-flash"
 
 def get_gemini_client():
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
+    # Clean the API key to handle common Render configuration errors (extra spaces or quotes)
+    raw_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not raw_key:
         print("CRITICAL: GEMINI_API_KEY not found in environment!")
         return None
+    
+    api_key = raw_key.strip().replace('"', '').replace("'", "")
     try:
-        # Pass the key explicitly to the client
+        # Pass the cleaned key explicitly to the client
         return genai.Client(api_key=api_key)
     except Exception as e:
         print(f"Gemini init error: {e}")
