@@ -44,17 +44,27 @@ def dice_loss(y_true, y_pred):
     )
     return 1 - dice
 
-# Load U-Net Model
-try:
-    unet_model = load_model(
-        UNET_MODEL_PATH,
-        custom_objects={"dice_loss": dice_loss},
-        compile=False
-    )
-    print("U-Net Model Loaded Successfully.")
-except Exception as e:
-    print("ERROR loading U-Net model:", e)
-    unet_model = None
+# 2. Set the global variable to None initially
+unet_model = None
+
+# 3. The Lazy Loader Function
+def get_unet_model():
+    """Lazy load the model only when a user requests a prediction."""
+    global unet_model
+    if unet_model is None:
+        print("Loading U-Net Model into memory...")
+        try:
+            # Using CPU device explicitly helps Render's stability
+            with tf.device('/cpu:0'):
+                unet_model = load_model(
+                    UNET_MODEL_PATH,
+                    custom_objects={"dice_loss": dice_loss},
+                    compile=False
+                )
+            print("U-Net Model Loaded Successfully.")
+        except Exception as e:
+            print(f"ERROR loading U-Net model: {e}")
+    return unet_model
 
 
 def unet_predict_mask(image_bytes):
@@ -97,13 +107,20 @@ def unet_predict_mask(image_bytes):
 #                 GEMINI CLIENT (OCR + Q&A)
 # ====================================================
 
-GEMINI_MODEL = "gemini-2.5-flash"
-client = None
-try:
-    client = genai.Client()
-    print("Gemini client initialized.")
-except Exception as e:
-    print("Gemini init error:", e)
+# Use 1.5-flash for better stability and speed on free tier
+GEMINI_MODEL = "gemini-1.5-flash"
+
+def get_gemini_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("CRITICAL: GEMINI_API_KEY not found in environment!")
+        return None
+    try:
+        # Pass the key explicitly to the client
+        return genai.Client(api_key=api_key)
+    except Exception as e:
+        print(f"Gemini init error: {e}")
+        return None
 
 def retry_gemini_call(func, *args, **kwargs):
     """
@@ -365,11 +382,18 @@ def hcw_login():
 def ocr_process():
     if request.method == "GET":
         return redirect(url_for("doctor_dashboard"))
+    
     if session.get('role') != 'doctor':
         return jsonify({'status': 'error', 'message': 'Access denied.'}), 403
 
-    if client is None:
-        return jsonify({'status': 'error', 'message': 'Gemini Vision Model not initialized. Check server configuration.'}), 503
+    # --- UPDATED: Use the helper function to get the client ---
+    current_client = get_gemini_client()
+    if current_client is None:
+        return jsonify({
+            'status': 'error', 
+            'message': 'Gemini Vision Model not initialized. Please verify the GEMINI_API_KEY in Render environment variables.'
+        }), 503
+    # -------------------------------------------------------
 
     if 'report_image' not in request.files:
         return jsonify({'status': 'error', 'message': 'No file part in the request.'}), 400
@@ -383,10 +407,10 @@ def ocr_process():
     filename = file.filename.lower()
 
     if filename.endswith('.pdf'):
-        return jsonify({'status': 'error', 'message': 'PDF files require conversion to an image for Gemini Vision. Please upload a PNG, JPG, or JPEG file.'}), 400
+        return jsonify({'status': 'error', 'message': 'PDF files require conversion to image. Upload PNG/JPG.'}), 400
 
     if not filename.endswith(('.png', '.jpg', '.jpeg', '.webp')):
-        return jsonify({'status': 'error', 'message': 'Unsupported file type. Please upload an image.'}), 400
+        return jsonify({'status': 'error', 'message': 'Unsupported file type.'}), 400
 
     required_keys = [
         'Age', 'Height', 'Weight', 'BMI', 'Pulse_ratebpm', 'RR_breathsmin',
@@ -401,68 +425,53 @@ def ocr_process():
         "Extract the lab values and patient vitals for the keys provided. "
         "Return the output ONLY as a single JSON object. "
         "The keys must match the required list exactly, and all values must be numeric (float or integer). "
-        "If a value is not clearly present in the report, omit that key from the JSON object. Do not guess or add any extra text or markdown outside the JSON."
-        f"\n\nRequired JSON keys (must match these names exactly): {', '.join(required_keys)}"
+        "If a value is not clearly present in the report, omit that key from the JSON object."
+        f"\n\nRequired JSON keys: {', '.join(required_keys)}"
     )
 
     try:
         # 1. Create a Part object for the image
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-        # 2. Call the Gemini Vision API with structured output configuration
+        # 2. Call Gemini using current_client and the corrected GEMINI_MODEL ("gemini-1.5-flash")
         response = retry_gemini_call(
-            client.models.generate_content,
+            current_client.models.generate_content,
             model=GEMINI_MODEL,
             contents=[prompt, image_part],
             config=types.GenerateContentConfig(
-                # Force the output to be JSON
                 response_mime_type="application/json",
-                # Guide the model on the required structure and types
                 response_schema=types.Schema(
                     type=types.Type.OBJECT,
                     properties={key: types.Schema(type=types.Type.NUMBER) for key in required_keys}
                 ),
-                temperature=0.0  # deterministic output for extraction
+                temperature=0.0
             )
         )
 
-        # 3. Parse the JSON response text
-        # response.text should be a JSON string when response_mime_type="application/json"
         parsed_data = json.loads(response.text)
-
-        # 4. Apply safety filter/conversion
         final_data = {k: safe_float(v) for k, v in parsed_data.items()}
 
         if not final_data:
             return jsonify({
                 'status': 'success',
-                'message': 'Data extraction complete, but no key values were reliably found by the AI.',
+                'message': 'No key values were reliably found in the image.',
                 'data': {}
             })
 
         return jsonify({
             'status': 'success',
-            'message': 'Data extracted using Gemini Vision and ready for auto-fill.',
+            'message': 'Data extracted and ready for auto-fill.',
             'data': final_data
         })
 
     except APIError as e:
         return jsonify({
             'status': 'error',
-            'message': f'Gemini API Error during extraction: {e}. Check API Key and limits.'
-        }), 500
-    except json.JSONDecodeError:
-        return jsonify({
-            'status': 'error',
-            'message': 'AI returned an unparseable response. Try a clearer image or simplify the prompt.'
+            'message': f'Gemini API Error: {e}. Ensure API Key is valid and billing is enabled if required.'
         }), 500
     except Exception as e:
         print(f"Vision Processing Error: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': f'An unexpected error occurred during processing: {str(e)}'
-        }), 500
-    
+        return jsonify({'status': 'error', 'message': f'Processing error: {str(e)}'}), 500
 
 
 # 6. Admin Dashboard
