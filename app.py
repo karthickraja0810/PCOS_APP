@@ -13,7 +13,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from PIL import Image
 # Gemini Vision LLM
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.utils import secure_filename
@@ -21,7 +23,7 @@ from werkzeug.utils import secure_filename
 # TensorFlow
 import tensorflow as tf
 
-# ================= GEMINI CONFIG (RENDER SAFE) =================
+# ================= GEMINI CONFIG (NEW SDK – FIXED) =================
 
 RAW_GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -29,19 +31,12 @@ if not RAW_GEMINI_KEY:
     raise RuntimeError("CRITICAL: GEMINI_API_KEY not found")
 
 GEMINI_API_KEY = RAW_GEMINI_KEY.strip().replace('"', '').replace("'", "")
-genai.configure(api_key=GEMINI_API_KEY)
 
-try:
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    print("✅ Gemini initialized with gemini-1.5-flash")
-except Exception as e:
-    print("❌ Gemini init failed:", e)
-    model = None
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+print("✅ Gemini client initialized (new SDK)")
 
 
-
-print("Gemini API initialized successfully")
-print("🔥 GEMINI MODEL ACTIVE:", model.model_name)
 
 # ====================================================
 #                U-NET SEGMENTATION MODEL
@@ -140,20 +135,11 @@ def unet_predict_mask(image_bytes):
 # ====================================================
 
 def run_chatbot(prompt):
-    if model is None:
-        raise RuntimeError("Gemini model not initialized")
-
-    response = model.generate_content(
-        prompt,
-        generation_config={
-            "temperature": 0.4,
-            "max_output_tokens": 512
-        }
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
     )
-    return response.text.strip()
-
-
-
+    return response.text
 
 # ====================================================
 #               XGBOOST PCOS MODEL
@@ -167,7 +153,6 @@ except Exception as e:
     print("Failed to load XGB/Scaler:", e)
     xgb_model = None
     scaler = None
-
 
 # ====================================================
 #                    FLASK APP
@@ -444,13 +429,20 @@ RULES:
 - Omit missing values
 """
 
-        response = model.generate_content(
-            [prompt, image],
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                prompt,
+                types.Part.from_image(image)
+            ],
             generation_config={
                 "temperature": 0.1,
                 "max_output_tokens": 512
             }
         )
+
+
+
 
         parsed = json.loads(response.text)
         cleaned = {k: safe_float(v) for k, v in parsed.items()}
@@ -710,7 +702,11 @@ Create a clinically formatted report with:
 Write clearly and professionally.
 """
 
-        ai_response = model.generate_content(prompt)
+        ai_response = client.models.generate_content(
+    model="gemini-1.5-flash",
+    contents=prompt
+)
+
 
 
         return jsonify({
