@@ -21,23 +21,27 @@ from werkzeug.utils import secure_filename
 # TensorFlow
 import tensorflow as tf
 
-# ================= GEMINI CONFIG (FIXED) =================
+# ================= GEMINI CONFIG (RENDER SAFE) =================
 
 RAW_GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not RAW_GEMINI_KEY:
     raise RuntimeError("CRITICAL: GEMINI_API_KEY not found")
 
-# 🔥 Clean the key (VERY IMPORTANT)
 GEMINI_API_KEY = RAW_GEMINI_KEY.strip().replace('"', '').replace("'", "")
-
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ✅ Free-tier supported model
-model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+try:
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    print("✅ Gemini initialized with gemini-1.5-flash")
+except Exception as e:
+    print("❌ Gemini init failed:", e)
+    model = None
+
+
 
 print("Gemini API initialized successfully")
-
+print("🔥 GEMINI MODEL ACTIVE:", model.model_name)
 
 # ====================================================
 #                U-NET SEGMENTATION MODEL
@@ -136,6 +140,9 @@ def unet_predict_mask(image_bytes):
 # ====================================================
 
 def run_chatbot(prompt):
+    if model is None:
+        raise RuntimeError("Gemini model not initialized")
+
     response = model.generate_content(
         prompt,
         generation_config={
@@ -145,7 +152,6 @@ def run_chatbot(prompt):
     )
     return response.text.strip()
 
-print("Gemini key loaded:", bool(os.getenv("GEMINI_API_KEY")))
 
 
 
