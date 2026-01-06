@@ -29,6 +29,7 @@ from google.genai.errors import APIError
 # ====================================================
 
 UNET_MODEL_PATH = "best_unet_checkpoint.keras"
+TFLITE_MODEL_PATH = "best_unet_checkpoint.tflite"
 UNET_IMG_SIZE = (256, 256)
 
 load_dotenv()
@@ -44,30 +45,24 @@ def dice_loss(y_true, y_pred):
     )
     return 1 - dice
 
-# 2. Set the global variable to None initially
-unet_model = None
+# 3. The Optimized TFLite Loader
+tflite_interpreter = None
 
-# 3. The Optimized Lazy Loader Function
-def get_unet_model():
-    """Lazy load the model only when a user requests a prediction to save memory."""
-    global unet_model
-    if unet_model is None:
-        print("Lazy Loading U-Net Model into memory...")
+def get_tflite_interpreter():
+    """Lazy load the TFLite interpreter to save memory."""
+    global tflite_interpreter
+    if tflite_interpreter is None:
+        print("Loading TFLite Model into memory...")
         try:
-            # Clear any previous sessions to free memory before loading large model
-            tf.keras.backend.clear_session()
-            
-            # Using CPU device explicitly helps Render's stability
-            with tf.device('/cpu:0'):
-                unet_model = load_model(
-                    UNET_MODEL_PATH,
-                    custom_objects={"dice_loss": dice_loss},
-                    compile=False
-                )
-            print("U-Net Model Loaded Successfully.")
+            # TFLite uses significantly less memory than full Keras models
+            tflite_interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
+            tflite_interpreter.allocate_tensors()
+            print("TFLite Model Loaded Successfully.")
         except Exception as e:
-            print(f"ERROR loading U-Net model: {e}")
-    return unet_model
+            print(f"ERROR loading TFLite model: {e}")
+    return tflite_interpreter
+
+# Removed legacy Keras get_unet_model function
 
 # Removed eager load to prevent OOM on app startup in Render's free tier
 
@@ -76,23 +71,30 @@ def unet_predict_mask(image_bytes):
     """
     Takes raw uploaded image bytes and returns (mask_b64, overlay_b64)
     """
-    # FIX: Get the model using the lazy loader
-    model = get_unet_model()
-    if model is None:
-        raise Exception("U-Net model could not be loaded. Check memory limits or file path.")
+    # Use TFLite for memory efficiency on Render
+    interpreter = get_tflite_interpreter()
+    if interpreter is None:
+        raise Exception("TFLite model could not be loaded. Check memory limits or file path.")
 
     img_array = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-
+    if img is None:
+        raise Exception("Failed to decode image.")
+        
     orig_h, orig_w = img.shape[:2]
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     resized = cv2.resize(img_rgb, UNET_IMG_SIZE)
 
-    x = resized.astype("float32") / 255.0
-    x = np.expand_dims(x, axis=0)
+    # Prepare input for TFLite
+    input_data = np.expand_dims(resized.astype("float32") / 255.0, axis=0)
 
-    # FIX: Use the 'model' variable returned by get_unet_model()
-    pred = model.predict(x)[0]
+    # Run inference
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    pred = interpreter.get_tensor(output_details[0]['index'])[0]
+
     mask = (pred > 0.5).astype(np.uint8)
 
     mask_resized = cv2.resize(mask, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
@@ -460,7 +462,7 @@ def ocr_process():
         # 1. Create a Part object for the image
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-        # 2. Call Gemini using current_client and the corrected GEMINI_MODEL ("gemini-1.5-flash")
+        # 2. Call Gemini using current_client and the stable GEMINI_MODEL
         response = retry_gemini_call(
             current_client.models.generate_content,
             model=GEMINI_MODEL,
