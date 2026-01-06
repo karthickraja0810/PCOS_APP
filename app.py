@@ -10,6 +10,7 @@ import cv2
 import time
 import random
 from dotenv import load_dotenv
+from PIL import Image
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.utils import secure_filename
@@ -20,9 +21,11 @@ from tensorflow.keras.preprocessing import image
 from tensorflow.keras.models import load_model
 
 # Gemini Vision LLM
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
+import google.generativeai as genai
+
+
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
 
 # ====================================================
 #                U-NET SEGMENTATION MODEL
@@ -117,47 +120,18 @@ def unet_predict_mask(image_bytes):
 #                 GEMINI CLIENT (OCR + Q&A)
 # ====================================================
 
-# Use 'gemini-1.5-flash-latest' for better stability and to avoid 404 issues
-GEMINI_MODEL = "gemini-1.5-flash-latest"
+model = genai.GenerativeModel("models/gemini-1.5-pro")
+def run_chatbot(prompt):
+    response = model.generate_content(
+        prompt,
+        generation_config={
+            "temperature": 0.4,
+            "max_output_tokens": 512
+        }
+    )
+    return response.text
+print("Gemini key loaded:", bool(os.getenv("GEMINI_API_KEY")))
 
-def get_gemini_client():
-    # Clean the API key to handle common Render configuration errors (extra spaces or quotes)
-    raw_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not raw_key:
-        print("CRITICAL: GEMINI_API_KEY not found in environment!")
-        return None
-    
-    api_key = raw_key.strip().replace('"', '').replace("'", "")
-    try:
-        # Pass the cleaned key explicitly to the client
-        return genai.Client(api_key=api_key)
-    except Exception as e:
-        print(f"Gemini init error: {e}")
-        return None
-
-def retry_gemini_call(func, *args, **kwargs):
-    """
-    Retries a Gemini API call with exponential backoff for 503 errors.
-    """
-    max_retries = 3
-    base_delay = 2  # seconds
-    
-    for attempt in range(max_retries):
-        try:
-            return func(*args, **kwargs)
-        except APIError as e:
-            if e.code == 503: # Service Unavailable/Overloaded
-                if attempt < max_retries - 1:
-                    sleep_time = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                    print(f"Gemini 503 Error. Retrying in {sleep_time:.2f}s... (Attempt {attempt + 1}/{max_retries})")
-                    time.sleep(sleep_time)
-                else:
-                    print("Max retries reached for Gemini API.")
-                    raise e
-            else:
-                raise e
-        except Exception as e:
-            raise e
 
 
 # ====================================================
@@ -265,21 +239,30 @@ def patient_home():
 
 
 # ========================== U-NET ROUTE ==========================
-
-@app.route("/unet_predict", methods=["GET", "POST"])
-def unet_predict_route():
-    if request.method == "GET":
-        return redirect(url_for("doctor_dashboard"))
-    if unet_model is None:
-        return jsonify({"error": "U-Net model failed to load."})
-
-    file = request.files.get("file")
-    if not file:
-        return jsonify({"error": "No file uploaded."})
-
+@app.before_first_request
+def warmup_unet():
     try:
+        print("Warming up TFLite U-Net model...")
+        get_tflite_interpreter()
+        print("U-Net warmup complete")
+    except Exception as e:
+        print("U-Net warmup failed:", e)
+
+@app.route("/unet_predict", methods=["POST"])
+def unet_predict_route():
+    try:
+        print("U-Net request received")
+
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"error": "No file uploaded."}), 400
+
         image_bytes = file.read()
+        print("Image bytes received:", len(image_bytes))
+
         mask_b64, overlay_b64 = unet_predict_mask(image_bytes)
+
+        print("U-Net inference completed")
 
         return jsonify({
             "unet_mask": mask_b64,
@@ -287,7 +270,11 @@ def unet_predict_route():
         })
 
     except Exception as e:
-        return jsonify({"error": f"Segmentation Error: {str(e)}"})
+        print("U-Net ERROR:", str(e))
+        return jsonify({
+            "error": f"Segmentation Error: {str(e)}"
+        }), 500
+
     
 # ---------------------------------------------
 # GLOBAL FEATURE LIST (MUST MATCH XGboost training data)
@@ -407,100 +394,68 @@ def hcw_login():
         flash("Invalid email or password", "error")
         return redirect(url_for("hcw_home"))
     
-@app.route('/doctor/ocr_process', methods=['GET', 'POST'])
+@app.route('/doctor/ocr_process', methods=['POST'])
 def ocr_process():
-    if request.method == "GET":
-        return redirect(url_for("doctor_dashboard"))
-    
     if session.get('role') != 'doctor':
         return jsonify({'status': 'error', 'message': 'Access denied.'}), 403
 
-    # --- UPDATED: Use the helper function to get the client ---
-    current_client = get_gemini_client()
-    if current_client is None:
-        return jsonify({
-            'status': 'error', 
-            'message': 'Gemini Vision Model not initialized. Please verify the GEMINI_API_KEY in Render environment variables.'
-        }), 503
-    # -------------------------------------------------------
-
     if 'report_image' not in request.files:
-        return jsonify({'status': 'error', 'message': 'No file part in the request.'}), 400
+        return jsonify({'status': 'error', 'message': 'No file uploaded.'}), 400
 
     file = request.files['report_image']
     if file.filename == '':
         return jsonify({'status': 'error', 'message': 'No selected file.'}), 400
 
-    image_bytes = file.read()
-    mime_type = file.mimetype or 'image/jpeg'
-    filename = file.filename.lower()
-
-    if filename.endswith('.pdf'):
-        return jsonify({'status': 'error', 'message': 'PDF files require conversion to image. Upload PNG/JPG.'}), 400
-
-    if not filename.endswith(('.png', '.jpg', '.jpeg', '.webp')):
-        return jsonify({'status': 'error', 'message': 'Unsupported file type.'}), 400
-
-    required_keys = [
-        'Age', 'Height', 'Weight', 'BMI', 'Pulse_ratebpm', 'RR_breathsmin',
-        'Hbgdl', 'Waist', 'Hip', 'BP_Systolic', 'BP_Diastolic', 'Cycle_RI',
-        'Cycle_lengthdays', 'No_of_aborptions', 'beta_HCG_I', 'beta_HCG_II',
-        'Follicle_No_L', 'Follicle_No_R', 'Avg_F_size_L', 'Avg_F_size_R',
-        'Endometrium', 'FSH', 'LH', 'TSH', 'AMH', 'PRL', 'VitD3', 'PRG', 'RBS'
-    ]
-
-    prompt = (
-        "You are an expert medical data extractor specializing in PCOS reports. Analyze the provided report image. "
-        "Extract the lab values and patient vitals for the keys provided. "
-        "Return the output ONLY as a single JSON object. "
-        "The keys must match the required list exactly, and all values must be numeric (float or integer). "
-        "If a value is not clearly present in the report, omit that key from the JSON object."
-        f"\n\nRequired JSON keys: {', '.join(required_keys)}"
-    )
+    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+        return jsonify({'status': 'error', 'message': 'Upload JPG/PNG image only.'}), 400
 
     try:
-        # 1. Create a Part object for the image
-        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        image = Image.open(file.stream)
 
-        # 2. Call Gemini using current_client and the stable GEMINI_MODEL
-        response = retry_gemini_call(
-            current_client.models.generate_content,
-            model=GEMINI_MODEL,
-            contents=[prompt, image_part],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={key: types.Schema(type=types.Type.NUMBER) for key in required_keys}
-                ),
-                temperature=0.0
-            )
-        )
+        required_keys = [
+            'Age', 'Height', 'Weight', 'BMI', 'Pulse_ratebpm', 'RR_breathsmin',
+            'Hbgdl', 'Waist', 'Hip', 'BP_Systolic', 'BP_Diastolic', 'Cycle_RI',
+            'Cycle_lengthdays', 'No_of_aborptions', 'beta_HCG_I', 'beta_HCG_II',
+            'Follicle_No_L', 'Follicle_No_R', 'Avg_F_size_L', 'Avg_F_size_R',
+            'Endometrium', 'FSH', 'LH', 'TSH', 'AMH', 'PRL', 'VitD3', 'PRG', 'RBS'
+        ]
 
-        parsed_data = json.loads(response.text)
-        final_data = {k: safe_float(v) for k, v in parsed_data.items()}
+        prompt = f"""
+You are a medical data extraction AI.
 
-        if not final_data:
-            return jsonify({
-                'status': 'success',
-                'message': 'No key values were reliably found in the image.',
-                'data': {}
-            })
+TASK:
+Extract PCOS-related lab values from the medical report image.
+
+RULES:
+- Return ONLY valid JSON
+- Keys must match exactly:
+{required_keys}
+- Values must be numeric
+- Omit missing values
+"""
+
+        response = model.generate_content([prompt, image])
+
+        parsed = json.loads(response.text)
+        cleaned = {k: safe_float(v) for k, v in parsed.items()}
 
         return jsonify({
             'status': 'success',
-            'message': 'Data extracted and ready for auto-fill.',
-            'data': final_data
+            'message': 'Data extracted successfully.',
+            'data': cleaned
         })
 
-    except APIError as e:
+    except json.JSONDecodeError:
         return jsonify({
             'status': 'error',
-            'message': f'Gemini API Error: {e}. Ensure API Key is valid and billing is enabled if required.'
+            'message': 'Gemini returned invalid JSON. Try a clearer image.'
         }), 500
+
     except Exception as e:
-        print(f"Vision Processing Error: {str(e)}")
-        return jsonify({'status': 'error', 'message': f'Processing error: {str(e)}'}), 500
+        return jsonify({
+            'status': 'error',
+            'message': f'OCR processing error: {str(e)}'
+        }), 500
 
 
 # 6. Admin Dashboard
@@ -649,40 +604,27 @@ def hcw_logout():
 # ... (after your existing routes, before if __name__ == "__main__":)
 
 # 11. LLM Chat Assistant Route
-@app.route('/api/llm_query', methods=['GET', 'POST'])
+@app.route('/api/llm_query', methods=['POST'])
 def llm_query():
-    if request.method == "GET":
-        return redirect(url_for("doctor_dashboard"))
-    
     if session.get('role') not in ['doctor', 'admin']:
         return jsonify({'status': 'error', 'message': 'Authentication required.'}), 403
 
-    # FIX: Get client inside the route
-    current_client = get_gemini_client()
-    if current_client is None:
-        return jsonify({'status': 'error', 'message': 'Gemini API Key missing.'}), 503
+    data = request.get_json()
+    prompt = data.get('prompt', '').strip()
+    if not prompt:
+        return jsonify({'status': 'error', 'message': 'No prompt provided.'}), 400
+
+    full_prompt = (
+        "You are a medically knowledgeable AI assistant specializing in PCOS. "
+        f"Doctor query: {prompt}"
+    )
 
     try:
-        data = request.get_json()
-        prompt = data.get('prompt')
-        if not prompt:
-            return jsonify({'status': 'error', 'message': 'No prompt provided.'}), 400
-
-        full_prompt = (
-            "You are a helpful and medically knowledgeable AI assistant specializing in PCOS. "
-            "Respond to the following doctor's query concisely: "
-            f"'{prompt}'"
-        )
-        
-        response = retry_gemini_call(
-            current_client.models.generate_content,
-            model=GEMINI_MODEL,
-            contents=[full_prompt]
-        )
-        
-        return jsonify({'status': 'success', 'llm_response': response.text})
+        answer = run_chatbot(full_prompt)
+        return jsonify({'status': 'success', 'llm_response': answer})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 # ====================================================
 #        AGENTIC PCOS CLINICAL REPORT GENERATOR
 # ====================================================
