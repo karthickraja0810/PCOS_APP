@@ -25,7 +25,23 @@ from tensorflow.keras.models import load_model
 import google.generativeai as genai
 
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# ================= GEMINI CONFIG (SAFE) =================
+
+RAW_GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+
+if not RAW_GEMINI_KEY:
+    raise RuntimeError("GEMINI_API_KEY not found in environment variables")
+
+# Clean common Render mistakes
+GEMINI_API_KEY = RAW_GEMINI_KEY.strip().replace('"', '').replace("'", "")
+
+print("Gemini key starts with:", GEMINI_API_KEY[:6])
+print("Gemini key length:", len(GEMINI_API_KEY))
+
+genai.configure(api_key=GEMINI_API_KEY)
+
+model = genai.GenerativeModel("models/gemini-1.5-pro")
+
 
 
 # ====================================================
