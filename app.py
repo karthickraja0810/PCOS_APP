@@ -12,36 +12,31 @@ import random
 from dotenv import load_dotenv
 load_dotenv()
 from PIL import Image
+# Gemini Vision LLM
+import google.generativeai as genai
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.utils import secure_filename
 
 # TensorFlow
 import tensorflow as tf
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.models import load_model
 
-# Gemini Vision LLM
-import google.generativeai as genai
-
-
-# ================= GEMINI CONFIG (SAFE) =================
+# ================= GEMINI CONFIG (FIXED) =================
 
 RAW_GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not RAW_GEMINI_KEY:
-    raise RuntimeError("GEMINI_API_KEY not found in environment variables")
+    raise RuntimeError("CRITICAL: GEMINI_API_KEY not found")
 
-# Clean common Render mistakes
+# 🔥 Clean the key (VERY IMPORTANT)
 GEMINI_API_KEY = RAW_GEMINI_KEY.strip().replace('"', '').replace("'", "")
-
-print("Gemini key starts with:", GEMINI_API_KEY[:6])
-print("Gemini key length:", len(GEMINI_API_KEY))
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("models/gemini-1.5-pro")
+# ✅ Free-tier supported model
+model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
 
+print("Gemini API initialized successfully")
 
 
 # ====================================================
@@ -56,7 +51,7 @@ if not os.path.exists(TFLITE_MODEL_PATH):
     print("CRITICAL: TFLite model not found at", os.path.abspath(TFLITE_MODEL_PATH))
 else:
     print("TFLite model found at", os.path.abspath(TFLITE_MODEL_PATH))
-
+    
 # Custom Dice Loss (must match training)
 def dice_loss(y_true, y_pred):
     y_true_f = tf.keras.backend.flatten(y_true)
@@ -140,7 +135,6 @@ def unet_predict_mask(image_bytes):
 #                 GEMINI CLIENT (OCR + Q&A)
 # ====================================================
 
-model = genai.GenerativeModel("models/gemini-1.5-pro")
 def run_chatbot(prompt):
     response = model.generate_content(
         prompt,
@@ -149,7 +143,8 @@ def run_chatbot(prompt):
             "max_output_tokens": 512
         }
     )
-    return response.text
+    return response.text.strip()
+
 print("Gemini key loaded:", bool(os.getenv("GEMINI_API_KEY")))
 
 
@@ -443,7 +438,13 @@ RULES:
 - Omit missing values
 """
 
-        response = model.generate_content([prompt, image])
+        response = model.generate_content(
+            [prompt, image],
+            generation_config={
+                "temperature": 0.1,
+                "max_output_tokens": 512
+            }
+        )
 
         parsed = json.loads(response.text)
         cleaned = {k: safe_float(v) for k, v in parsed.items()}
