@@ -136,13 +136,13 @@ def unet_predict_mask(image_bytes):
 
 def run_chatbot(prompt: str) -> str:
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt,
-        generation_config=types.GenerationConfig(
-            temperature=0.4,
-            max_output_tokens=512
-        )
+    model="gemini-1.5-flash",
+    contents=prompt,
+    config=types.GenerateContentConfig(
+        temperature=0.4,
+        max_output_tokens=512
     )
+)
     return response.candidates[0].content.parts[0].text.strip()
 
 
@@ -437,16 +437,14 @@ RULES:
 
         response = client.models.generate_content(
     model="gemini-1.5-flash",
-    contents=[
-        prompt,
-        types.Part.from_image(image)
-    ],
-    generation_config=types.GenerationConfig(
+    contents=[prompt, types.Part.from_image(image)],
+    config=types.GenerateContentConfig(
         temperature=0.1,
         max_output_tokens=512,
         response_mime_type="application/json"
     )
 )
+
 
         parsed_text = response.candidates[0].content.parts[0].text
         parsed = json.loads(parsed_text)
@@ -714,11 +712,12 @@ Write clearly and professionally.
         ai_response = client.models.generate_content(
     model="gemini-1.5-flash",
     contents=prompt,
-    generation_config=types.GenerationConfig(
+    config=types.GenerateContentConfig(
         temperature=0.3,
         max_output_tokens=1024
     )
 )
+
 
 
 
