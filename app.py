@@ -10,6 +10,7 @@ import cv2
 import time
 import random
 from dotenv import load_dotenv
+load_dotenv()
 from PIL import Image
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
@@ -35,7 +36,10 @@ UNET_MODEL_PATH = "best_unet_checkpoint.keras"
 TFLITE_MODEL_PATH = "best_unet_checkpoint.tflite"
 UNET_IMG_SIZE = (256, 256)
 
-load_dotenv()
+if not os.path.exists(TFLITE_MODEL_PATH):
+    print("CRITICAL: TFLite model not found at", os.path.abspath(TFLITE_MODEL_PATH))
+else:
+    print("TFLite model found at", os.path.abspath(TFLITE_MODEL_PATH))
 
 # Custom Dice Loss (must match training)
 def dice_loss(y_true, y_pred):
@@ -155,14 +159,12 @@ except Exception as e:
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-long-random-string")
 
-# Ensure Gemini uses the API Key from your .env or Environment Settings
-client = None
+print("Warming up TFLite U-Net model...")
 try:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    client = genai.Client(api_key=api_key)
-    print("Gemini client initialized.")
+    get_tflite_interpreter()
+    print("U-Net warmup complete")
 except Exception as e:
-    print("Gemini init error:", e)
+    print("U-Net warmup failed:", e)
 
 UPLOAD_FOLDER = "temp_uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -239,15 +241,6 @@ def patient_home():
 
 
 # ========================== U-NET ROUTE ==========================
-@app.before_first_request
-def warmup_unet():
-    try:
-        print("Warming up TFLite U-Net model...")
-        get_tflite_interpreter()
-        print("U-Net warmup complete")
-    except Exception as e:
-        print("U-Net warmup failed:", e)
-
 @app.route("/unet_predict", methods=["POST"])
 def unet_predict_route():
     try:
@@ -694,11 +687,8 @@ Create a clinically formatted report with:
 Write clearly and professionally.
 """
 
-        ai_response = retry_gemini_call(
-            client.models.generate_content,
-            model=GEMINI_MODEL,
-            contents=[prompt]
-        )
+        ai_response = model.generate_content(prompt)
+
 
         return jsonify({
             "status": "success",
