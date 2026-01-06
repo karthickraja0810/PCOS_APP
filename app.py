@@ -134,12 +134,18 @@ def unet_predict_mask(image_bytes):
 #                 GEMINI CLIENT (OCR + Q&A)
 # ====================================================
 
-def run_chatbot(prompt):
+def run_chatbot(prompt: str) -> str:
     response = client.models.generate_content(
         model="gemini-1.5-flash",
-        contents=prompt
+        contents=prompt,
+        generation_config=types.GenerationConfig(
+            temperature=0.4,
+            max_output_tokens=512
+        )
     )
-    return response.text
+    return response.candidates[0].content.parts[0].text.strip()
+
+
 
 # ====================================================
 #               XGBOOST PCOS MODEL
@@ -430,21 +436,21 @@ RULES:
 """
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=[
-                prompt,
-                types.Part.from_image(image)
-            ],
-            generation_config={
-                "temperature": 0.1,
-                "max_output_tokens": 512
-            }
-        )
+    model="gemini-1.5-flash",
+    contents=[
+        prompt,
+        types.Part.from_image(image)
+    ],
+    generation_config=types.GenerationConfig(
+        temperature=0.1,
+        max_output_tokens=512,
+        response_mime_type="application/json"
+    )
+)
 
+        parsed_text = response.candidates[0].content.parts[0].text
+        parsed = json.loads(parsed_text)
 
-
-
-        parsed = json.loads(response.text)
         cleaned = {k: safe_float(v) for k, v in parsed.items()}
 
         return jsonify({
@@ -631,7 +637,10 @@ def llm_query():
         answer = run_chatbot(full_prompt)
         return jsonify({'status': 'success', 'llm_response': answer})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 # ====================================================
 #        AGENTIC PCOS CLINICAL REPORT GENERATOR
@@ -704,8 +713,13 @@ Write clearly and professionally.
 
         ai_response = client.models.generate_content(
     model="gemini-1.5-flash",
-    contents=prompt
+    contents=prompt,
+    generation_config=types.GenerationConfig(
+        temperature=0.3,
+        max_output_tokens=1024
+    )
 )
+
 
 
 
@@ -713,8 +727,7 @@ Write clearly and professionally.
             "status": "success",
             "risk": risk_label,
             "probability": probability,
-            "report": ai_response.text
-        })
+            "report": ai_response.candidates[0].content.parts[0].text})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
